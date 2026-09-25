@@ -1,123 +1,86 @@
 # ⚽ FPL Scout — Fantasy Premier League Tactical Agent
 
-An agentic AI assistant designed for **Fantasy Premier League (FPL)** managers. Built on **Google Cloud Agent Platform (Reasoning Engine)**, powered by **Gemini 3.6 Flash**, and integrated with **A2UI**, **Memory Bank**, **Google Cloud Storage**, **Firestore**, and **Cloud Run**.
+An agentic AI assistant designed for **Fantasy Premier League (FPL)** managers. Built with Google's **Agent Development Kit (ADK)**, powered by **Gemini 3.6 Flash**, and integrated with **A2UI**, **Vertex AI Memory Bank**, **Google Cloud Storage**, **Firestore**, and **Cloud Run**.
+
+![FPL Scout Demo](demo.gif)
 
 ---
 
-## 🚀 Live Deployments
+## 📌 What FPL Scout Does
 
-- **Frontend (Cloud Run)**: [https://fpl-scout-frontend-840012412258.us-east1.run.app](https://fpl-scout-frontend-840012412258.us-east1.run.app)
-- **Agent Engine (Reasoning Engine)**: `projects/840012412258/locations/us-east1/reasoningEngines/8076420880386752512`
-- **Memory Bank (Agent Engine ID)**: `807048131857350656`
-- **GCS Bucket (Scouting Images & Radar Cards)**: `gs://bwg3-qwiklabs-gcp-04-2d53b9c1010c`
-- **GCP Project**: `qwiklabs-gcp-04-2d53b9c1010c` (Location: `us-east1`)
+FPL Scout is a data-driven assistant that helps managers make mathematically sound decisions for upcoming Premier League gameweeks:
 
----
-
-## 📌 Architecture & Features
-
-```
-               ┌────────────────────────────────────────────────────────┐
-               │              FPL Scout Frontend (Cloud Run)            │
-               │   FastAPI Proxy + Branded FPL Chat UI + A2UI v0.8     │
-               └───────────────────────────┬────────────────────────────┘
-                                           │ A2A Protocol (gRPC/HTTP)
-                                           ▼
-               ┌────────────────────────────────────────────────────────┐
-               │           Agent Engine (Vertex AI Reasoning Engine)    │
-               │                   gemini-3.6-flash                     │
-               └───────┬───────────────────┬───────────────────┬────────┘
-                       │                   │                   │
-                       ▼                   ▼                   ▼
-       ┌───────────────────────┐ ┌───────────────────┐ ┌────────────────┐
-       │   Memory Bank (Vertex)│ │ Firestore Database│ │ Imagen (GCS)   │
-       │ Persistent FPL stats, │ │ Manager details,  │ │ Pitch diagrams │
-       │ user squads & watch   │ │ player stats      │ │ Radar cards    │
-       └───────────────────────┘ └───────────────────┘ └────────────────┘
-```
-
-### Core Capabilities
 1. **Mini-League Differential Scouting**:
-   - Analyzes mini-league rivals' squads and recommends low-ownership high-upside differential picks for upcoming gameweeks to help you climb the leaderboard.
+   - Analyzes competitor squads in your mini-league to pinpoint low-ownership (<20%), high-upside differential players with favorable upcoming fixtures to help you gain rank.
 2. **Lineup & Captaincy Engine**:
-   - Optimal starting 11 selection, vice-captain backup, bench order prioritization, and fixture difficulty rating (FDR) assessment.
+   - Recommends the optimal starting 11, vice-captain backup, and bench ordering based on form, expected goals/assists (xG/xA), and fixture difficulty ratings (FDR).
 3. **Transfer Hit Calculator**:
-   - Evaluates whether taking a `-4` or `-8` point deduction is mathematically justifiable over a 3-gameweek horizon.
+   - Evaluates whether taking a `-4` or `-8` point deduction is mathematically justifiable over a multi-gameweek horizon.
 4. **Interactive A2UI Cards (v0.8 Basic Catalog)**:
-   - Dynamic UI cards rendered in the browser (welcome dashboard, player scouting cards, chip activation banners, squad comparison tables).
-5. **AI Image Generation**:
-   - Uses `gemini-3.1-flash-lite-image` in global region to produce tactical pitch formations, radar scouting cards, and chip activation infographics uploaded directly to public Cloud Storage.
+   - Dynamic UI surfaces rendered in the chat (squad tables, scouting cards, chip activation banners, and gameweek status summaries).
+5. **Multimodal Media Generation**:
+   - **Tactical Pitch Formations & Radar Cards**: Generated via `gemini-3.1-flash-lite-image` and saved both locally as artifacts and uploaded to Google Cloud Storage.
+   - **Highlight Clips**: Generated via `gemini-omni-flash-preview` using the Interactions API in the `global` region and uploaded directly to Google Cloud Storage.
 6. **Cross-Session Memory Bank**:
-   - Powered by Vertex AI Memory Bank (`shared://memory`), remembering manager profile, favorite clubs, budget headroom, and chip usage history across chats.
+   - Uses Vertex AI Memory Bank (`shared://memory`) to retain user manager ID, favorite clubs, mini-league IDs, chip history, and watchlists across conversations.
 
 ---
 
-## 🛠️ Step-by-Step Build History & Implementation
+## 🛠️ Actually Implemented Tools & Services
 
-### Phase 1: Core Agent & Domain Setup
-- Implemented FPL tools for fetching manager profiles, squad data, mini-league standings, player form, and FDR tables.
-- Seeded Firestore collections for persistent team metadata.
+Based directly on `app/agent.py` and `agents-cli-manifest.yaml`, the following services and tools are wired up:
 
-### Phase 2: Multimodal Image Generation Tool
-- Implemented `generate_formation_image` tool with `gemini-3.1-flash-lite-image`.
-- Configured double-destination handling:
-  1. `tool_context.save_artifact` for local Playground visualization.
-  2. Direct upload to `gs://bwg3-qwiklabs-gcp-04-2d53b9c1010c` returning public HTTPS URLs.
+### Google Cloud Services
+- **Vertex AI Reasoning Engine / ADK Agent Runtime**: Orchestrates conversational flow, tool execution, and callbacks.
+- **Gemini Models**:
+  - `gemini-3.6-flash` (in `global` region) for reasoning, tactical advice, and tool calling.
+  - `gemini-3.1-flash-lite-image` (in `global` region) for pitch formation graphics and scouting radar cards.
+  - `gemini-omni-flash-preview` (in `global` region via Interactions API) for short highlight video generation.
+- **Vertex AI Memory Bank**: Persistent cross-session user memory via `VertexAiMemoryBankService`.
+- **Google Cloud Storage (GCS)**: Public bucket storage for generated images and videos.
+- **Cloud Firestore**: Database collections for manager profiles, team fixtures, and player metadata.
+- **Cloud Run**: Production deployment of the FastAPI proxy and branded chat UI.
 
-### Phase 3: Vertex AI Memory Bank Integration
-- Wired `VertexAiMemoryBankService` in `app/app_utils/services.py` with `MEMORY_SERVICE_URI = "shared://memory"`.
-- Connected to reused Memory Bank engine `807048131857350656`.
-
-### Phase 4: A2UI v0.8 Rich Visual Interfaces
-- Integrated `A2uiSchemaManager(version="v0.8", catalog=BASIC_CATALOG)` in `app/agent.py`.
-- Injected system prompt guidelines for A2UI JSON structures (`beginRendering` and `surfaceUpdate`).
-- Created and vendored `a2ui_utils.py` and the `a2ui` core package into `app/` with an `after_model_callback` pipeline.
-
-### Phase 5: Agent Platform Deployment & IAM Configuration
-- Fixed region pinning by configuring `client_kwargs={"location": "global"}` on the LLM client.
-- Deployed agent to Agent Platform:
-  `agents-cli deploy --no-confirm-project` -> Resource `8076420880386752512`.
-- Configured Cloud IAM permissions:
-  - `roles/datastore.user` on Firestore for agent service accounts.
-  - `roles/storage.objectAdmin` on GCS image bucket for agent service accounts.
-
-### Phase 6: Frontend Proxy & Plain Chat UI
-- Created minimal FastAPI proxy in `./frontend/main.py`.
-- Configured compatibility with `a2a-sdk` v1.x protobuf streaming, `A2ACardResolver`, and structured JSON-RPC passthrough.
-- Built interactive chat interface supporting both plain text and client-rendered A2UI cards.
-
-### Phase 7: Rebranding & UI Polish
-- Customized dark theme with Premier League Deep Purple (`#37003c`), Cyan, and Mint Green (`#00ff87`).
-- Added 3 interactive prompt chips:
-  - Mini-League Differentials
-  - Lineup & Captaincy Picks
-  - Player Scout & Fixtures
-
-### Phase 8: Cloud Run Production Deployment
-- Deployed frontend to Cloud Run:
-  `gcloud run deploy fpl-scout-frontend --region us-east1 --allow-unauthenticated`
-- Granted `roles/aiplatform.user` to the Cloud Run compute service account (`840012412258-compute@developer.gserviceaccount.com`).
+### Active Agent Tools
+- `recommend_gameweek_differentials`: Analyzes mini-league rivals and identifies low-ownership differential picks.
+- `recommend_captain`: Determines primary and vice-captain choices based on FDR and expected returns.
+- `get_squad_lineup_and_chips`: Fetches current team lineup, bench order, and active/available chips.
+- `evaluate_transfer_hit`: Calculates whether points hits (-4/-8) yield net expected value.
+- `generate_fpl_visual`: Generates tactical pitch formations or graphics using `gemini-3.1-flash-lite-image` and uploads to GCS.
+- `generate_player_scout_card`: Creates FIFA Ultimate Team-style radar scouting cards for players.
+- `generate_chip_activation_banner`: Generates broadcast-style banners for Wildcard, Triple Captain, Free Hit, or Bench Boost.
+- `generate_fpl_highlight_video`: Generates short video clips using `gemini-omni-flash-preview` and uploads to GCS.
+- `get_saved_watchlist`, `save_player_to_watchlist`, `remove_player_from_watchlist`: Manages the manager's personal target list in Firestore.
+- `get_my_team_and_leagues`, `get_mini_league_standings`, `check_gameweek_status`, `get_player_stats`, `check_team_fixtures`: Live stats and fixture queries.
 
 ---
 
-## 💻 Local Development
+## 💻 Local Setup & Running Instructions
 
-### Prerequisites
-- Python 3.11+ / uv package manager
-- Google Cloud SDK (`gcloud`) authenticated to GCP project `qwiklabs-gcp-04-2d53b9c1010c`
+### 1. Prerequisites
+- Python 3.11+
+- `uv` package manager (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- Google Cloud SDK (`gcloud`) authenticated to your GCP project:
+  ```bash
+  gcloud auth login
+  gcloud auth application-default login
+  ```
 
-### Running the Agent Playground Locally
+### 2. Running the Agent Playground Locally
+Start the local ADK developer playground connected to your Memory Bank:
 ```bash
-uv run adk web . --port 8080 --reload_agents --memory_service_uri=agentengine://807048131857350656
+uv run adk web . --port 8000 --reload_agents --memory_service_uri=agentengine://<YOUR_MEMORY_BANK_ID>
 ```
 
-### Running the Frontend Locally
+### 3. Running the Chat Frontend Locally
+In a separate terminal, run the branded chat UI and proxy server:
 ```bash
 cd frontend
-export AGENT_ENGINE_RESOURCE_NAME="projects/840012412258/locations/us-east1/reasoningEngines/8076420880386752512"
+export AGENT_ENGINE_RESOURCE_NAME="projects/<PROJECT_ID>/locations/<REGION>/reasoningEngines/<REASONING_ENGINE_ID>"
 export AGENT_DIRECTORY="app"
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
+Open your browser to `http://localhost:8080` to chat with the agent.
 
 ---
 
@@ -125,19 +88,26 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 
 ```
 ├── app/
-│   ├── a2ui/                  # Vendored A2UI package
+│   ├── a2ui/                  # Vendored A2UI v0.8 core package
 │   ├── app_utils/             # Service definitions & memory bank
-│   ├── agent.py               # Root ADK agent with Gemini 3.6 Flash & A2UI callback
+│   ├── agent.py               # Root ADK agent with Gemini 3.6 Flash & callbacks
 │   ├── a2ui_utils.py          # A2UI callback hooks and schemas
 │   ├── fast_api_app.py        # Local API server definition
-│   └── tools.py               # FPL stats, differential picks & image generator
+│   ├── firestore_service.py   # Firestore database integrations
+│   ├── fpl_service.py         # Official Premier League data fetchers
+│   ├── image_service.py       # gemini-3.1-flash-lite-image & GCS uploader
+│   ├── video_service.py       # gemini-omni-flash-preview & GCS uploader
+│   └── tools.py               # FPL stats, differential picks & captaincy engine
 ├── frontend/
 │   ├── static/
-│   │   └── index.html         # FPL-branded chat interface with A2UI renderer
-│   ├── main.py                # FastAPI A2A client proxy to Reasoning Engine
-│   └── requirements.txt       # Cloud Run dependencies
+│   │   └── index.html         # Branded chat UI with A2UI card renderer
+│   ├── main.py                # FastAPI proxy communicating via A2A protocol
+│   └── requirements.txt       # Frontend dependencies
+├── APIS_AND_GEMINI_FEATURES.md # Complete index of APIs and AI models
 ├── agents-cli-manifest.yaml   # Manifest for agents-cli deployment
 ├── deployment_metadata.json   # Deployed Reasoning Engine ID & metadata
-├── project_brief.md           # Project specification & capabilities
+├── demo.gif                   # Screen-captured demo video of the agent
+├── fpl_scout_demo.webm        # Raw screen recording
+├── project_brief.md           # Project specification
 └── pyproject.toml             # Python dependencies
 ```

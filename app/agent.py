@@ -139,6 +139,38 @@ async def generate_player_scout_card(
     )
 
 
+async def generate_fpl_highlight_video(
+    prompt: str,
+    title: str = "fpl_highlight",
+    tool_context: Optional[ToolContext] = None,
+) -> Dict[str, Any]:
+    """Generates a short video for an FPL item (goal celebration, match highlight, tactic clip) using gemini-omni-flash-preview.
+    
+    Saves the video as an artifact for the Playground and uploads the bytes directly to Google Cloud Storage,
+    returning its public https URL.
+    """
+    from app.video_service import generate_and_upload_video
+
+    video_bytes, mime_type, filename, public_url = generate_and_upload_video(
+        prompt=prompt,
+        filename_prefix=title,
+    )
+
+    if tool_context:
+        try:
+            artifact_part = types.Part.from_bytes(data=video_bytes, mime_type=mime_type)
+            await tool_context.save_artifact(filename=filename, artifact=artifact_part)
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "video_url": public_url,
+        "filename": filename,
+        "message": f"Video generated with gemini-omni-flash-preview and uploaded to public bucket. Public URL: {public_url}",
+    }
+
+
 # ==================== MINI-LEAGUE DIFFERENTIAL ANALYSIS ====================
 
 
@@ -385,6 +417,7 @@ root_agent = Agent(
     tools=[
         PreloadMemoryTool(),
         recommend_gameweek_differentials,
+        generate_fpl_highlight_video,
         generate_chip_activation_banner,
         generate_player_scout_card,
         generate_fpl_visual,
